@@ -1,5 +1,5 @@
 ###### in case anything wrong, PIL implementation of Scipy toimage function is here
-###### never tested
+###### never tested, credit to stackoverflow user
 import numpy as np
 from PIL import Image
 
