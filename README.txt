@@ -1,4 +1,11 @@
-NucProcess
+NucProcess with update
+
+new update log:
+1. bowtie2 build index: empty index when using .fa files. removed -c option. Icreased performance by removing -p and used multithreads option.
+2. removed deprecated toimage() function, replaced by PLI.Image.
+
+
+
 ----------
 
 NucProcess is a Python program to perform single-cell Hi-C sequence processing
