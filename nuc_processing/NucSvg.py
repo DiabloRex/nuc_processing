@@ -42,6 +42,9 @@ import colorsys, base64, sys
 import numpy as np
 from scipy import misc
 from xml.sax import saxutils
+## due to AttributeError: module 'scipy.misc' has no attribute 'toimage', function deprecated, have to use another method to save picture
+from PIL import Image 
+
 
 try:
   from cStringIO import StringIO as bytes_io
@@ -221,8 +224,14 @@ class SvgDocument(object):
   def image(self, x, y, w, h, data):
 
     io = bytes_io()
-    img = misc.toimage(data)
+
+    #### to image deprecated, have to change
+    #img = misc.toimage(data)
+    #img.save(io, format="PNG")
+    
+    img = Image.fromarray((data*255).astype('uint8'), mode='L').convert('RGB')
     img.save(io, format="PNG")
+
     base_64_data = base64.b64encode(io.getvalue()).decode()
 
     line = '     <image x="%d" y="%d" width="%d" height="%d" xlink:href="data:image/png;base64,%s" />\n' % (x, y, w, h, base_64_data)

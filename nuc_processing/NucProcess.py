@@ -2121,8 +2121,8 @@ def uncompress_gz_file(file_name):
   return file_name
 
 
-def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build',
-                 table_size=10, quiet=True, pack=True):
+def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build', threads=48,
+                 table_size=10, quiet=False, pack=False):
 
   fasta_files = []
   for file_name in file_names:
@@ -2131,7 +2131,12 @@ def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build',
 
   fasta_file_str = ','.join(map(os.path.abspath, fasta_files))
 
-  cmd_args = [indexer_exe, '-f', '-c']
+  #original: error during mapping, doesnot generate any index, because '-c', might used in gz file input
+  #cmd_args = [indexer_exe, '-f', '-c']
+
+  #input file fasta, not gz compressed, and adjusted for 48 core to build index
+  cmd_args = [indexer_exe, '-f', '--threads', str(threads)]
+
 
   if quiet:
     cmd_args.append('-q')
@@ -2140,6 +2145,11 @@ def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build',
     cmd_args.append('-p')
 
   cmd_args += ['-t', str(table_size), fasta_file_str, base_name]
+
+  #print Info
+  print("Building bowtie2 index using " + str(threads) + " core(s)...")
+  print("Parameters are: ")
+  print(cmd_args)
 
   call(cmd_args, cwd=output_dir)
 
@@ -3060,12 +3070,12 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if g_fastas and (reindex or not is_genome_indexed(genome_index)):
     warn('Indexing genome, this may take some time...')
     output_dir, base_name = os.path.split(genome_index)
-    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe) # Latest version of bowtie2 can do parallel index builds (--threads)
+    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by Yanmeng, add --threads
 
   if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
     warn('Indexing secondary genome, this may take some time...')
     output_dir, base_name = os.path.split(genome_index2)
-    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe)
+    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) ## edited by Yanmeng, add --threads
 
   # Create RE fragments file if not present
 
