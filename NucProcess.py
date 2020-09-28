@@ -3070,12 +3070,12 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if g_fastas and (reindex or not is_genome_indexed(genome_index)):
     warn('Indexing genome, this may take some time...')
     output_dir, base_name = os.path.split(genome_index)
-    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
+    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by Yanmeng, add --threads
 
   if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
     warn('Indexing secondary genome, this may take some time...')
     output_dir, base_name = os.path.split(genome_index2)
-    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) ## edited by DiabloRex, add --threads
+    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) ## edited by Yanmeng, add --threads
 
   # Create RE fragments file if not present
 

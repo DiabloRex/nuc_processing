@@ -228,8 +228,9 @@ class SvgDocument(object):
     #### to image deprecated, have to change
     #img = misc.toimage(data)
     #img.save(io, format="PNG")
-
-    img = Image.fromarray((data*255).astype('uint8'), mode='RGB')
+    print(self, x, y, w, h, data)
+    
+    img = Image.fromarray((data*255).astype('uint8'), mode='L').convert('RGB')
     img.save(io, format="PNG")
 
     base_64_data = base64.b64encode(io.getvalue()).decode()
