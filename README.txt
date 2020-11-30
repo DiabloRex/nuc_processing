@@ -2,7 +2,9 @@ NucProcess with update
 
 new update log:
 1. <NucProcess.py> bowtie2 build index: empty index when using .fa files. removed -c option. Icreased performance by removing -p and used multithreads option.
+2. <NucProcess.py> updated writing for gzip file when using -z
 2. <NucSvg.py> removed deprecated toimage() function, replaced by PIL.Image.
+
 
 
 
