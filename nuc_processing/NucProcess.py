@@ -102,8 +102,8 @@ def compress_file(file_path):
 
   in_file_obj = open(file_path, 'rU', READ_BUFFER)
   out_file_path = file_path + '.gz'
-
-  out_file_obj = gzip.open(out_file_path, 'wb')
+  ###  changed form 'wb' -> 'wt': for error in gzip file
+  out_file_obj = gzip.open(out_file_path, 'wt')
   out_file_obj.writelines(in_file_obj)
 
   in_file_obj.close()
@@ -3092,12 +3092,14 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if g_fastas and (reindex or not is_genome_indexed(genome_index)):
     warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index)
-    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
+    # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
+    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) 
 
   if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
     warn('Indexing secondary genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index2)
-    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) ## edited by DiabloRex, add --threads
+    ## edited by DiabloRex, add --threads
+    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) 
 
   # Create RE fragments file if not present
 

@@ -100,7 +100,7 @@ def compress_file(file_path):
 
   in_file_obj = open(file_path, 'rU', READ_BUFFER)
   out_file_path = file_path + '.gz'
-
+  ###  changed form 'wb' -> 'wt': for error in gzip file ## By DiabloRex
   out_file_obj = gzip.open(out_file_path, 'wb')
   out_file_obj.writelines(in_file_obj)
 
