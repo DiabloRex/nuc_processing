@@ -38,6 +38,8 @@ Hi-C. Nature. 2017 Apr 6;544(7648):59-64. doi: 10.1038/nature21429. Epub 2017 Ma
 
 import sys, os, re, shutil, gzip, json, string
 import numpy as np
+import datetime
+import gc
 
 from collections import defaultdict
 from shutil import move
@@ -426,13 +428,27 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
   out_file_name = tag_file_name(ncc_file, 'multi_read')
   out_file_name_temp = out_file_name + TEMP_EXT
 
+  ### yanmeng for debug
+  info("outputting file: " + out_file_name)
+  info("outputting TEMP file: " + out_file_name_temp)
+  ###
+
   if INTERRUPTED and os.path.exists(out_file_name) and not os.path.exists(out_file_name_temp):
+    ### yanmeng for debug
+    info("remove_redundancy has been skipped due to interruption and result file already exsits.")
     return out_file_name
 
   # First make temporary sorted file
   sort_file_name = tag_file_name(ncc_file, 'sort')
   cmd_args = ['sort', ncc_file]
-  call(cmd_args, shell=False, stderr=None, stdin=None, stdout=open(sort_file_name, 'w'))
+  ### yanmeng for debug
+  info("sorting file: " + ncc_file + ", output file: " + sort_file_name + "...")
+
+  if not os.path.exists(sort_file_name):
+    call(cmd_args, shell=False, stderr=None, stdin=None, stdout=open(sort_file_name, 'w'))
+    info("sorting file: " + ncc_file + " sorted...")
+  else:
+    info("sorting file: " + ncc_file + " already sorted...")
 
   sort_file_obj = open(sort_file_name, 'r')
   out_file_obj = open(out_file_name_temp, 'w')
@@ -448,6 +464,7 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
   else:
     ncc_idx = (0,3,5,6,9,11) # Compare on read starts - does not consider ends as these can vary in read replicates
 
+  info("considering " + str(ncc_idx))
   # Calculate sizes of ambiguity groups
 
   nc = 0
@@ -458,12 +475,15 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
     nc += 1
 
   # Remove repeats
+  gc.collect()
 
   excluded_groups = set()
   group_reps = defaultdict(int)
   sort_file_obj.seek(0)
   line_keep = sort_file_obj.readline()
   write = out_file_obj.write
+
+  info("Writting file: " + out_file_obj.name)
 
   if line_keep: # Could be empty
     line_data = line_keep.split()
@@ -524,7 +544,9 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
     # Write remaining
     write(line_keep)
 
+  info(out_file_obj.name + " finished writting...")
   out_file_obj.close()
+  
 
   if keep_files:
     if zip_files:
@@ -532,8 +554,8 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
 
   else:
     os.unlink(ncc_file)
-
-  os.unlink(sort_file_name) # Remove temp sorted file
+  info("not removing sorted file for debug: " + sort_file_name + "at " + str(datetime.datetime.now()))
+  #os.unlink(sort_file_name) # Remove temp sorted file
 
   # Remove excluded ambig groups and non-supported
 
@@ -2122,7 +2144,7 @@ def uncompress_gz_file(file_name):
 
 
 def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build', threads=48,
-                 table_size=10, quiet=False, pack=False):
+                 table_size=10, quiet=True, pack=False):
 
   fasta_files = []
   for file_name in file_names:
@@ -2147,9 +2169,9 @@ def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build',
   cmd_args += ['-t', str(table_size), fasta_file_str, base_name]
 
   #print Info
-  print("Building bowtie2 index using " + str(threads) + " core(s)...")
-  print("Parameters are: ")
-  print(cmd_args)
+  info("Building bowtie2 index using " + str(threads) + " core(s)...")
+  info("Parameters are: ")
+  info(cmd_args)
 
   call(cmd_args, cwd=output_dir)
 
@@ -3068,12 +3090,12 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   indexer_exe = os.path.join(os.path.dirname(align_exe), 'bowtie2-build')
 
   if g_fastas and (reindex or not is_genome_indexed(genome_index)):
-    warn('Indexing genome, this may take some time...')
+    warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index)
     index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
 
   if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
-    warn('Indexing secondary genome, this may take some time...')
+    warn('Indexing secondary genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index2)
     index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) ## edited by DiabloRex, add --threads
 
@@ -3095,17 +3117,17 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     unpair_path2 = get_hybrid_unpairable(g_fastas2, genome_index2, genome_index, hom_chromo_dict, align_exe, num_cpu)
 
   # Clip read seqs at any sequenced ligation junctions
-  info('Clipping FASTQ reads...')
+  info('Clipping FASTQ reads...' + str(datetime.datetime.now()))
   clipped_file1 = clip_reads(fastq_paths[0], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual)
   clipped_file2 = clip_reads(fastq_paths[1], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual, is_second=True)
 
   # Do the main genome mapping
-  info('Mapping FASTQ reads...')
+  info('Mapping FASTQ reads...' + str(datetime.datetime.now()))
   sam_file1 = map_reads(clipped_file1, genome_index, align_exe, num_cpu, ambig, qual_scheme, 1)
   sam_file2 = map_reads(clipped_file2, genome_index, align_exe, num_cpu, ambig, qual_scheme, 2)
 
   if genome_index2:
-    info('Mapping FASTQ reads to second genome...')
+    info('Mapping FASTQ reads to second genome...' + str(datetime.datetime.now()))
     sam_file3 = map_reads(clipped_file1, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 3)
     sam_file4 = map_reads(clipped_file2, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 4)
 
@@ -3113,7 +3135,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     os.unlink(clipped_file1)
     os.unlink(clipped_file2)
 
-  info('Pairing FASTQ reads...')
+  info('Pairing FASTQ reads...' + str(datetime.datetime.now()))
 
   if genome_index2:
     paired_ncc_file, ambig_paired_ncc_file = pair_mapped_hybrid_seqs(sam_file1, sam_file2, sam_file3, sam_file4, unpair_path1, unpair_path2, intermed_file_root, ambig, unique_map)
@@ -3128,7 +3150,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
       write_sam_file(ambig_paired_ncc_file, sam_file1, sam_file2)
 
   # Filtering
-  info('Filtering mapped sequences...')
+  info('Filtering mapped sequences...' + str(datetime.datetime.now()))
 
   filter_output = filter_pairs(paired_ncc_file, re1_files, re2_files, sizes, keep_files, zip_files, chromo_name_dict)
   filter_ncc_file, fail_file_names = filter_output
@@ -3141,7 +3163,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
       write_sam_file(fail_file_names[key], sam_file1, sam_file2)
 
   if ambig:
-    info('Filtering ambiguously mapped sequences...')
+    info('Filtering ambiguously mapped sequences...' + str(datetime.datetime.now()))
     filter_output = filter_pairs(ambig_paired_ncc_file, re1_files, re2_files, sizes, keep_files, zip_files, chromo_name_dict, ambig=True)
     ambig_filter_ncc_file, ambig_fail_file_names = filter_output
 
@@ -3170,21 +3192,21 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
 
   else:
     # Merge duplicates
-    info('Removing duplicate contacts...')
+    info('Removing duplicate contacts...' + str(datetime.datetime.now()))
     nr_ncc_file = remove_redundancy(filter_ncc_file, min_rep, keep_files, zip_files)
 
     if sam_format:
       write_sam_file(nr_ncc_file, sam_file1, sam_file2)
 
     if ambig:
-      info('Filtering duplicate ambiguous contacts...')
+      info('Filtering duplicate ambiguous contacts...' + str(datetime.datetime.now()))
       ambig_nr_ncc_file = remove_redundancy(ambig_filter_ncc_file, min_rep, keep_files, zip_files, ambig=True)
 
       if sam_format:
         write_sam_file(ambig_nr_ncc_file, sam_file1, sam_file2)
 
     # Remove promiscuous ends
-    info('Removing pairs with promiscuous ends...')
+    info('Removing pairs with promiscuous ends...' + str(datetime.datetime.now()))
     clean_ncc_file = remove_promiscuous(nr_ncc_file, num_copies, keep_files, zip_files)
 
     if sam_format:
@@ -3193,7 +3215,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     shutil.copyfile(clean_ncc_file, out_file)
 
     if ambig:
-      info('Removing ambiguous pairs with promiscuous ends...')
+      info('Removing ambiguous pairs with promiscuous ends...' + str(datetime.datetime.now()))
       ambig_clean_ncc_file = remove_promiscuous(ambig_nr_ncc_file, num_copies, keep_files, zip_files, ambig=True)
 
       if sam_format:
@@ -3230,7 +3252,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if n_contacts > 1:
     nuc_contact_map(out_file, '_contact_map')
 
-  info('Nuc Process all done.')
+  info('Nuc Process all done.' + str(datetime.datetime.now()))
 
   return out_file
 
