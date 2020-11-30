@@ -99,8 +99,8 @@ if os.path.exists(RE_CONF_FILE):
 
 
 def compress_file(file_path):
-
-  in_file_obj = open(file_path, 'rU', READ_BUFFER)
+  ###  changed form 'rU' -> 'r': for Deprecation Warning
+  in_file_obj = open(file_path, 'r', READ_BUFFER)
   out_file_path = file_path + '.gz'
   ###  changed form 'wb' -> 'wt': for error in gzip file
   out_file_obj = gzip.open(out_file_path, 'wt')
