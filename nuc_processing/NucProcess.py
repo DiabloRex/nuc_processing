@@ -214,6 +214,7 @@ def remove_promiscuous(ncc_file, num_copies=1, keep_files=True, zip_files=False,
 
   resolve_limit : Allow two suitably close promiscous ends if the pairs are long range cis or trans
   """
+  print(ncc_file)
 
   clean_ncc_file = tag_file_name(ncc_file, 'clean')
   clean_ncc_file_temp = clean_ncc_file + TEMP_EXT
@@ -3020,7 +3021,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   intermed_file_root = os.path.join(intermed_dir, os.path.basename(file_root))
   if not os.path.exists(intermed_dir):
     os.mkdir(intermed_dir)
-
+  print(file_root)
   # Check and set output files
   if out_file:
     out_file = check_file_extension(out_file, '.ncc')
