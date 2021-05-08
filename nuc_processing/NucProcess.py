@@ -1462,6 +1462,7 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
 
   sam_file_path = tag_file_name(fastq_file, 'map%d' % job, '.sam')
   sam_file_path_temp = sam_file_path + TEMP_EXT
+  unmapped_reads_file_path = tag_file_name(fastq_file, 'unmapped.fq.gz') # added by DiabloRex
 
   if INTERRUPTED and os.path.exists(sam_file_path) and not os.path.exists(sam_file_path_temp):
     return sam_file_path
@@ -1471,14 +1472,17 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
   patt_3 = re.compile('(\d+) \(.+\) aligned 0 times')
   patt_4 = re.compile('(\d+) \(.+\) aligned >1 times')
 
+  # default mode end to end
   cmd_args = [align_exe,
-              '-D', '20', '-R', '3', '-N', '0',  '-L', '20',  '-i', 'S,1,0.50',
+              '-D', '20', '-R', '3', '-N', '0',  '-L', '20',  '-i', 'S,1,0.50', # same as --very-sensitive -- DiabloRex
               '-x', genome_index,
-              '-k', '2',
+              #'-k', '2', # sames no meanning at all removed by -- DiabloRex
+              '--no-unal', # not report unmapped reads to save disk space -- DiabloRex
               '--reorder',
               '-p', str(num_cpu),
               '-U', fastq_file,
-              '-S', sam_file_path_temp]
+              '-S', sam_file_path_temp,
+              '--un-gz', unmapped_reads_file_path] # save unmapped reads for local mapping (not implemented now)
 
   if qual_scheme == 'phred33':
     cmd_args += ['--phred33']
@@ -1535,6 +1539,25 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
 
   return sam_file_path
 
+# assign reads to parental -- added by DiabloRex
+def assign_reads(sam_file1, sam_file2, vcf):
+  cmd_args = ["AssignPMReads", vcf, sam_file1, sam_file2] # save unmapped reads for local mapping (not implemented now)
+  proc = Popen(cmd_args, stderr=PIPE, stdout=PIPE)
+  std_out, std_err = proc.communicate()
+
+  error = False
+  if std_err:
+    msg = std_err.decode('ascii')
+    error = True
+  else:
+    msg = std_out.decode('ascii')
+
+  sam = os.path.splitext(sam_file1)
+  sam_file1 = sam[0] + ".assigned" + sam[1]
+  sam = os.path.splitext(sam_file2)
+  sam_file2 = sam[0] + ".assigned" + sam[1]
+
+  return sam_file1, sam_file2, msg, error
 
 def clip_reads(fastq_file, file_root, junct_seq, replaced_seq, qual_scheme, min_qual, is_second=False, min_len=MIN_READ_LEN):
   """
@@ -2838,10 +2861,13 @@ def read_homologous_chromos(file_path):
 def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(300,800), min_rep=2, num_cpu=1, num_copies=1,
                 ambig=True, unique_map=False, homo_chromo=None, out_file=None, ambig_file=None, report_file=None,
                 align_exe=None, qual_scheme=None, min_qual=30, g_fastas=None, g_fastas2=None, is_pop_data=False, remap=False, reindex=False,
-                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True):
+                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None):
   """
   Main function for command-line operation
   """
+  # added by DiabloRex
+  if mg and not g_fastas and not index_fasta:
+    fatal('Not Enough Genome FASTQ files specified in make genome mode, one for indexing, the other for RE site')
 
   genome_indices = [genome_index]
   if genome_index2:
@@ -2851,7 +2877,8 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     genome_indices.append(genome_index2)
 
   # Files can be empty if just re-indexing etc...
-  if not fastq_paths and not (reindex and g_fastas):
+  # added by DiabloRex
+  if not mg and not fastq_paths and not (reindex and g_fastas):
     fatal('No FASTQ files specified')
 
   # Check FASTQ files : two present, exist, right format
@@ -2870,17 +2897,17 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if not (0 <= min_qual <= 40):
     fatal('Miniumum FASTQ quality score must be in the range 0-40 (%d specified).' % min_qual)
 
-  for file_path in fastq_paths:
-    is_ok, msg = check_regular_file(file_path)
+  if fastq_paths: # added by DiabloRex
+    for file_path in fastq_paths:
+      is_ok, msg = check_regular_file(file_path)
 
-    if not is_ok:
-      fatal(msg)
+      if not is_ok:
+        fatal(msg)
 
-    is_ok, msg = check_fastq_file(file_path)
+      is_ok, msg = check_fastq_file(file_path)
 
-    if not is_ok:
-      fatal(msg)
-
+      if not is_ok:
+        fatal(msg)
   # Check any homologous chromosome file
   if homo_chromo:
     is_ok, msg = check_regular_file(homo_chromo)
@@ -2955,6 +2982,12 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
 
       if not is_ok:
         fatal(msg)
+  # check fasta used for index -- DiabloRex
+  if index_fasta:
+    is_ok, msg = check_regular_file(fata_path)
+
+    if not is_ok:
+      fatal(msg)
 
   # Check restriction enzymes
   if re1 not in RE_SITES:
@@ -3006,22 +3039,24 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     lig_junc = get_ligation_junction(re1Seq)
 
   # Get base file name for output
-  for file_path in (out_file, ambig_file, report_file):
-    if file_path:
-      file_root = os.path.splitext(file_path)[0]
-      break
+  if not mg:
+    for file_path in (out_file, ambig_file, report_file):
+      if file_path:
+        file_root = os.path.splitext(file_path)[0]
+        break
 
+    else:
+      file_paths = list(map(partial(strip_ext, ext=".gz"), fastq_paths))
+      merged_path = merge_file_names(file_paths[0], file_paths[1])
+      file_root = os.path.splitext(merged_path)[0]
   else:
-    file_paths = list(map(partial(strip_ext, ext=".gz"), fastq_paths))
-
-    merged_path = merge_file_names(file_paths[0], file_paths[1])
-    file_root = os.path.splitext(merged_path)[0]
+    file_root = "Make_Genome" # only for place holder in mg mode
 
   intermed_dir = file_root + '_nuc_processing_files'
   intermed_file_root = os.path.join(intermed_dir, os.path.basename(file_root))
   if not os.path.exists(intermed_dir):
     os.mkdir(intermed_dir)
-  print(file_root)
+  #print(file_root)
   # Check and set output files
   if out_file:
     out_file = check_file_extension(out_file, '.ncc')
@@ -3059,30 +3094,51 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   else:
     size_str = '%d - %d' % tuple(sizes)
 
-  general_stats = [
-    ('Input FASTQ file 1', fastq_paths[0]),
-    ('Input FASTQ file 2', fastq_paths[1]),
-    ('Homolog chrom. file', homo_chromo or 'None'),
-    ('Output file (main)',os.path.abspath(out_file)),
-    ('Output file (ambiguous)',os.path.abspath(ambig_file) if ambig_file else 'None'),
-    ('Report file',os.path.abspath(report_file)),
-    ('Intermediate file directory',os.path.abspath(intermed_dir)),
-    ('Aligner executable',align_exe),
-    ('Genome indices',', '.join(genome_indices)),
-    ('FASTQ quality scheme',qual_scheme),
-    ('Minimum 3\' FASTQ quaility',min_qual),
-    ('RE1 site',re1),
-    ('RE2 site',(re2 or 'None')),
-    ('Ligation junction',lig_junc),
-    ('Molecule size range',size_str),
-    ('Min sequencing repeats',min_rep),
-    ('Parallel CPU cores',num_cpu),
-    ('Keep intermediate files?', 'Yes' if keep_files else 'No'),
-    ('Input is single-cell Hi-C?', 'No' if is_pop_data else 'Yes'),
-    ('Strict mapping only?', 'Yes' if unique_map else 'No'),
-    ('SAM output?', 'Yes' if sam_format else 'No'),
-    ('GZIP output?', 'Yes' if zip_files else 'No'),
-  ]
+  if mg:
+    mode = 'Make Genome Only'
+  else:
+    mode = 'Normal'
+
+  if mg:
+      general_stats = [
+        ('Mode', mode),
+        ('Aligner executable',align_exe),
+        ('Genome indices',', '.join(genome_indices)),
+        ('Genome FASTA', index_fasta),
+        ('RE1 site',re1),
+        ('RE2 site',(re2 or 'None')),
+        ('RE Genome FASTA', g_fastas[0]),
+        ('Ligation junction',lig_junc),
+        ('Molecule size range',size_str),
+        ('Parallel CPU cores',num_cpu),
+        ('Keep intermediate files?', 'Yes' if keep_files else 'No'),
+      ]
+  else:
+    general_stats = [
+      ('Mode', mode),
+      ('Input FASTQ file 1', fastq_paths[0]),
+      ('Input FASTQ file 2', fastq_paths[1]),
+      ('Homolog chrom. file', homo_chromo or 'None'),
+      ('Output file (main)',os.path.abspath(out_file)),
+      ('Output file (ambiguous)',os.path.abspath(ambig_file) if ambig_file else 'None'),
+      ('Report file',os.path.abspath(report_file)),
+      ('Intermediate file directory',os.path.abspath(intermed_dir)),
+      ('Aligner executable',align_exe),
+      ('Genome indices',', '.join(genome_indices)),
+      ('FASTQ quality scheme',qual_scheme),
+      ('Minimum 3\' FASTQ quaility',min_qual),
+      ('RE1 site',re1),
+      ('RE2 site',(re2 or 'None')),
+      ('Ligation junction',lig_junc),
+      ('Molecule size range',size_str),
+      ('Min sequencing repeats',min_rep),
+      ('Parallel CPU cores',num_cpu),
+      ('Keep intermediate files?', 'Yes' if keep_files else 'No'),
+      ('Input is single-cell Hi-C?', 'No' if is_pop_data else 'Yes'),
+      ('Strict mapping only?', 'Yes' if unique_map else 'No'),
+      ('SAM output?', 'Yes' if sam_format else 'No'),
+      ('GZIP output?', 'Yes' if zip_files else 'No'),
+    ]
 
   log_report('general', general_stats)
 
@@ -3090,23 +3146,32 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
 
   indexer_exe = os.path.join(os.path.dirname(align_exe), 'bowtie2-build')
 
-  if g_fastas and (reindex or not is_genome_indexed(genome_index)):
+  # added by DiabloRex
+  if mg:
     warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index)
-    # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
-    index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) 
+    index_genome(base_name, [index_fasta], output_dir or '.', indexer_exe, num_cpu)
+  else:
+    if g_fastas and (reindex or not is_genome_indexed(genome_index)):
+      warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
+      output_dir, base_name = os.path.split(genome_index)
+      # Latest version of bowtie2 can do parallel index builds (--threads) ## edited by DiabloRex, add --threads
+      index_genome(base_name, g_fastas, output_dir or '.', indexer_exe, num_cpu) 
 
-  if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
-    warn('Indexing secondary genome, this may take some time...' + str(datetime.datetime.now()))
-    output_dir, base_name = os.path.split(genome_index2)
-    ## edited by DiabloRex, add --threads
-    index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) 
+    if g_fastas2 and genome_index2 and (reindex or not is_genome_indexed(genome_index2)):
+      warn('Indexing secondary genome, this may take some time...' + str(datetime.datetime.now()))
+      output_dir, base_name = os.path.split(genome_index2)
+      ## edited by DiabloRex, add --threads
+      index_genome(base_name, g_fastas2, output_dir or '.', indexer_exe, num_cpu) 
 
   # Create RE fragments file if not present
 
   re1_files = [check_re_frag_file(genome_index, re1, g_fastas, align_exe, num_cpu, remap=remap)]
   re2_files = []
 
+  if mg:
+    return
+  
   if re2:
     re2_files.append(check_re_frag_file(genome_index, re2, g_fastas, align_exe, num_cpu, remap=remap))
 
@@ -3137,6 +3202,20 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if not keep_files:
     os.unlink(clipped_file1)
     os.unlink(clipped_file2)
+
+  # Assign reads to Parental for Analysis using VCF File -- Added by DiabloRex
+  # Warnning: Only assigned reads are saved for downstream analysis.
+  # unmapped, both reads unassigned, not matched reads are removed here.
+  # using program PrepareSNP, written by DiabloRex in dotnet core 5 C#, so install dotnet core 5 runtime is required.
+  if pm:
+    info('Assigning Parental reads...' + str(datetime.datetime.now()))
+    sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf)
+
+    for m in msg.split('\n'):
+      if m.strip():
+        info(m)
+    if error:
+      return
 
   info('Pairing FASTQ reads...' + str(datetime.datetime.now()))
 
@@ -3362,6 +3441,20 @@ def main(argv=None):
 
   arg_parse.add_argument('-c', default=0, metavar='GENOME_COPIES',
                          type=int, help='Number of whole-genome copies, e.g. for S2 phase; Default 1 unless homologous chromosomes (-hc) are specified for hybrid genomes.')
+  # added parameters by DiabloRex
+  arg_parse.add_argument('-mg', default=False, action='store_true',
+                         help='Prepare genome related file only, index or RE site')
+
+  arg_parse.add_argument('-pm', default=False, action='store_true',
+                         help='Whether to perform Parental analysis from two different genome, required for -vcf')
+
+  arg_parse.add_argument('-vcf', metavar='SNP_VCF_FILE',
+                         help='Optional input vcf files for distinguish Parental reads, chr name should be the same with bowtie2 index file.')
+
+  arg_parse.add_argument('-if', metavar='GENOME_FASTA_FILE_FOR_INDEX',
+                         help='Optional input FASTA files for making bowtie Index used for Parental Analysis, An SNP N-masked FASTA file.')
+
+
 
   args = vars(arg_parse.parse_args(argv))
 
@@ -3395,6 +3488,20 @@ def main(argv=None):
   homo_chromo = args['hc']
   num_copies = args['c']
 
+  # added parameters by DiabloRex
+  mg = args['mg']
+  pm = args['pm']
+  vcf = args['vcf']
+  index_fasta = args['if']
+
+  if pm and not vcf:
+    msg = 'No VCF file input for Parental Analysis'
+    fatal(msg)
+  
+  if pm and g_fastas2:
+    msg = 'Parental Analysis is only avilable for only one genome!'
+    fatal(msg)
+
   if not num_copies:
     if homo_chromo:
       num_copies = 2
@@ -3404,11 +3511,11 @@ def main(argv=None):
   if sizes:
     sizes = sorted([int(x) for x in re.split('\D+', sizes)])
 
-  if not fastq_paths:
+  if not mg and not fastq_paths:  # make exception for make genome only process
     msg = 'No FASTQ paths specified'
     fatal(msg)
 
-  elif len(fastq_paths) > 2: # Batch mode
+  elif fastq_paths and len(fastq_paths) > 2: # Batch mode
     fastq_paths_1, fastq_paths_2 = pair_fastq_files(fastq_paths, pair_tags)
 
     if out_file or ambig_file or report_file:
@@ -3425,7 +3532,7 @@ def main(argv=None):
     nuc_process(fastq_paths, genome_index, genome_index2, re1, re2, sizes, min_rep, num_cpu, num_copies,
                 ambig, unique_map, homo_chromo, out_file, ambig_file, report_file, align_exe,
                 qual_scheme, min_qual, g_fastas, g_fastas2, is_pop_data, remap, reindex, keep_files,
-                lig_junc, zip_files, sam_format, verbose)
+                lig_junc, zip_files, sam_format, verbose, mg, pm, vcf, index_fasta)
 
   # Required:
   #  - Output CSV report file option
