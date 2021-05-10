@@ -2,10 +2,11 @@ NucProcess with update
 
 new update log:
 1. <NucProcess.py> bowtie2 build index: empty index when using .fa files. removed -c option. Icreased performance by removing -p and used multithreads option.
-2. <NucProcess.py> updated writing for gzip file when using -z
+2. <NucProcess.py> updated writing for gzip file when using -z, and supported compression on clipped FASTQ files
 3. <NucProcess.py> updated for parental analysis: -pm, and requires -vcf file to assign reads
 4. <NucProcess.py> added -mg: make genome mode for parental analysis, index genome -if, original -f is used for searching for RE sites, -g genome name. both are required.
   nuc_process -n 16 -mg -g mm10/mm10 -f mm10.masked.fa -if mm10.pwk.fa for two different genomes. One used for RE site, the other used for mapping. mainly used for -pm mode.
+5. <NucProcess.py> updated multithreading for clipping FASTQ reads
 5. <NucSvg.py> removed deprecated toimage() function, replaced by PIL.Image.
 
 

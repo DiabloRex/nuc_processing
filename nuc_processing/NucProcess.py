@@ -40,6 +40,7 @@ import sys, os, re, shutil, gzip, json, string
 import numpy as np
 import datetime
 import gc
+import concurrent.futures # add by DiabloRex to perform multithreading calculation
 
 from collections import defaultdict
 from shutil import move
@@ -1565,7 +1566,7 @@ def clip_reads(fastq_file, file_root, junct_seq, replaced_seq, qual_scheme, min_
   """
 
   tag = 'reads2_clipped' if is_second else 'reads1_clipped'
-  clipped_file = tag_file_name(file_root, tag, '.fastq')
+  clipped_file = tag_file_name(file_root, tag, '.fastq.gz') # add compression to fastq file to save space - DiabloRex
   clipped_file_temp = clipped_file + TEMP_EXT
 
   if INTERRUPTED and os.path.exists(clipped_file) and not os.path.exists(clipped_file_temp):
@@ -1583,10 +1584,11 @@ def clip_reads(fastq_file, file_root, junct_seq, replaced_seq, qual_scheme, min_
 
   zero_ord = QUAL_ZERO_ORDS[qual_scheme]
 
-  out_file_obj = open(clipped_file_temp, 'w', READ_BUFFER)
+  #out_file_obj = open(clipped_file_temp, 'w', READ_BUFFER)
+  out_file_obj = gzip.open(clipped_file_temp, 'wt') # compression - DiabloRex
   write = out_file_obj.write
   readline = in_file_obj.readline
-
+  compress_file
   line1 = readline()
   while line1[0] != '@':
     line1 = readline()
@@ -3185,8 +3187,15 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
 
   # Clip read seqs at any sequenced ligation junctions
   info('Clipping FASTQ reads...' + str(datetime.datetime.now()))
-  clipped_file1 = clip_reads(fastq_paths[0], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual)
-  clipped_file2 = clip_reads(fastq_paths[1], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual, is_second=True)
+  #clipped_file1 = clip_reads(fastq_paths[0], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual)
+  #clipped_file2 = clip_reads(fastq_paths[1], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual, is_second=True)
+
+  # using multithreads to improve performance by DiabloRex
+  with concurrent.futures.ThreadPoolExecutor() as executor:
+    feature1 = executor.submit(clip_reads, fastq_paths[0], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual)
+    feature2 = executor.submit(clip_reads, fastq_paths[1], intermed_file_root, lig_junc, re1Seq, qual_scheme, min_qual, is_second=True)
+    clipped_file1 = feature1.result()
+    clipped_file2 = feature2.result()
 
   # Do the main genome mapping
   info('Mapping FASTQ reads...' + str(datetime.datetime.now()))
