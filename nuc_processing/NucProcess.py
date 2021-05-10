@@ -2183,7 +2183,6 @@ def index_genome(base_name, file_names, output_dir, indexer_exe='bowtie2-build',
   #input file fasta, not gz compressed, and adjusted for 48 core to build index
   cmd_args = [indexer_exe, '-f', '--threads', str(threads)]
 
-
   if quiet:
     cmd_args.append('-q')
 
@@ -3147,7 +3146,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   indexer_exe = os.path.join(os.path.dirname(align_exe), 'bowtie2-build')
 
   # added by DiabloRex
-  if mg:
+  if mg and not is_genome_indexed(genome_index):
     warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index)
     index_genome(base_name, [index_fasta], output_dir or '.', indexer_exe, num_cpu)
