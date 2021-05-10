@@ -1588,7 +1588,6 @@ def clip_reads(fastq_file, file_root, junct_seq, replaced_seq, qual_scheme, min_
   out_file_obj = gzip.open(clipped_file_temp, 'wt') # compression - DiabloRex
   write = out_file_obj.write
   readline = in_file_obj.readline
-  compress_file
   line1 = readline()
   while line1[0] != '@':
     line1 = readline()
