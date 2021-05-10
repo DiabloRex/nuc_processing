@@ -1459,9 +1459,12 @@ def pair_mapped_seqs(sam_file1, sam_file2, file_root, ambig=True, unique_map=Fal
   return paired_ncc_file_name, ambig_ncc_file_name
 
 
-def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, job):
+def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, job, zipfile):
 
   sam_file_path = tag_file_name(fastq_file, 'map%d' % job, '.sam')
+  # add by DiabloRex, error name in compressed fastq file
+  sam_file_path = os.path.splitext(sam_file_path)[0]
+  print("DEBUG: " + sam_file_path)
   sam_file_path_temp = sam_file_path + TEMP_EXT
   unmapped_reads_file_path = tag_file_name(fastq_file, 'unmapped.fq.gz') # added by DiabloRex
 
@@ -3198,13 +3201,13 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
 
   # Do the main genome mapping
   info('Mapping FASTQ reads...' + str(datetime.datetime.now()))
-  sam_file1 = map_reads(clipped_file1, genome_index, align_exe, num_cpu, ambig, qual_scheme, 1)
-  sam_file2 = map_reads(clipped_file2, genome_index, align_exe, num_cpu, ambig, qual_scheme, 2)
+  sam_file1 = map_reads(clipped_file1, genome_index, align_exe, num_cpu, ambig, qual_scheme, 1, zip_files)
+  sam_file2 = map_reads(clipped_file2, genome_index, align_exe, num_cpu, ambig, qual_scheme, 2, zip_files)
 
   if genome_index2:
     info('Mapping FASTQ reads to second genome...' + str(datetime.datetime.now()))
-    sam_file3 = map_reads(clipped_file1, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 3)
-    sam_file4 = map_reads(clipped_file2, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 4)
+    sam_file3 = map_reads(clipped_file1, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 3, zip_files)
+    sam_file4 = map_reads(clipped_file2, genome_index2, align_exe, num_cpu, ambig, qual_scheme, 4, zip_files)
 
   if not keep_files:
     os.unlink(clipped_file1)
