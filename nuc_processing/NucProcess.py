@@ -1464,7 +1464,7 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
   sam_file_path = tag_file_name(fastq_file, 'map%d' % job, '.sam')
   # add by DiabloRex, error name in compressed fastq file
   sam_file_path = os.path.splitext(sam_file_path)[0]
-  print("DEBUG: " + sam_file_path)
+  #print("DEBUG: " + sam_file_path)
   sam_file_path_temp = sam_file_path + TEMP_EXT
   unmapped_reads_file_path = tag_file_name(fastq_file, 'unmapped.fq.gz') # added by DiabloRex
 
