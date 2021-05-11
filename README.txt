@@ -9,7 +9,7 @@ new update log:
 5. <NucProcess.py> updated multithreading for clipping FASTQ reads
 6. <NucSvg.py> removed deprecated toimage() function, replaced by PIL.Image.
 7. DotNet 5 is required for assigning PM reads, module was written in C#. (Module will be included in program folder, after testing)
-
+8. <NucProcess.py> added -pcm: plot contact matrix only mode, -pcm test.ncc
 
 
 ----------

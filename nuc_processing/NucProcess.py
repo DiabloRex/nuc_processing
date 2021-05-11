@@ -1544,8 +1544,8 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
   return sam_file_path
 
 # assign reads to parental -- added by DiabloRex
-def assign_reads(sam_file1, sam_file2, vcf):
-  cmd_args = ["AssignPMReads", vcf, sam_file1, sam_file2] # save unmapped reads for local mapping (not implemented now)
+def assign_reads(sam_file1, sam_file2, vcf, mode):
+  cmd_args = ["AssignPMReads", vcf, sam_file1, sam_file2, mode] # save unmapped reads for local mapping (not implemented now)
   proc = Popen(cmd_args, stderr=PIPE, stdout=PIPE)
   std_out, std_err = proc.communicate()
 
@@ -2864,7 +2864,7 @@ def read_homologous_chromos(file_path):
 def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(300,800), min_rep=2, num_cpu=1, num_copies=1,
                 ambig=True, unique_map=False, homo_chromo=None, out_file=None, ambig_file=None, report_file=None,
                 align_exe=None, qual_scheme=None, min_qual=30, g_fastas=None, g_fastas2=None, is_pop_data=False, remap=False, reindex=False,
-                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None):
+                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None, fr = False):
   """
   Main function for command-line operation
   """
@@ -3088,7 +3088,11 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   LOG_FILE_PATH = file_root + '.log'
   STAT_FILE_PATH = file_root + '_stats.json'
   VERBOSE = bool(verbose)
-  INTERRUPTED = is_interrupted_job()
+  # forced interruption
+  if fr:
+    INTERRUPTED = True
+  else:
+    INTERRUPTED = is_interrupted_job()
 
   # Check for no upper fragment size limit
   if len(sizes) == 1:
@@ -3219,7 +3223,8 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   # using program PrepareSNP, written by DiabloRex in dotnet core 5 C#, so install dotnet core 5 runtime is required.
   if pm:
     info('Assigning Parental reads...' + str(datetime.datetime.now()))
-    sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf)
+    mode = "RU"
+    sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf, mode)
 
     for m in msg.split('\n'):
       if m.strip():
@@ -3337,7 +3342,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   final_stats = get_ncc_stats(out_file, hom_chromo_dict)
   log_report('final', final_stats)
 
-  write_report(report_file, genome_index2)
+  #write_report(report_file, genome_index2) # not write report for now
 
   n_contacts = final_stats[0][1]
 
@@ -3464,6 +3469,11 @@ def main(argv=None):
   arg_parse.add_argument('-if', metavar='GENOME_FASTA_FILE_FOR_INDEX',
                          help='Optional input FASTA files for making bowtie Index used for Parental Analysis, An SNP N-masked FASTA file.')
 
+  arg_parse.add_argument('-fr', default=False, action='store_true',
+                         help='Force redo, Force INTERRUPTED')
+
+  arg_parse.add_argument('-pcm', metavar='NCC_FILE',
+                         help='Plot Contact Matrix From NCC file.')
 
 
   args = vars(arg_parse.parse_args(argv))
@@ -3503,6 +3513,11 @@ def main(argv=None):
   pm = args['pm']
   vcf = args['vcf']
   index_fasta = args['if']
+  fr = args['fr']
+  pcm = args['pcm']
+  if pcm:
+    nuc_contact_map(pcm, '_contact_map')
+    return
 
   if pm and not vcf:
     msg = 'No VCF file input for Parental Analysis'
@@ -3542,7 +3557,7 @@ def main(argv=None):
     nuc_process(fastq_paths, genome_index, genome_index2, re1, re2, sizes, min_rep, num_cpu, num_copies,
                 ambig, unique_map, homo_chromo, out_file, ambig_file, report_file, align_exe,
                 qual_scheme, min_qual, g_fastas, g_fastas2, is_pop_data, remap, reindex, keep_files,
-                lig_junc, zip_files, sam_format, verbose, mg, pm, vcf, index_fasta)
+                lig_junc, zip_files, sam_format, verbose, mg, pm, vcf, index_fasta, fr)
 
   # Required:
   #  - Output CSV report file option
