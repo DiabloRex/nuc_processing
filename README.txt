@@ -7,8 +7,8 @@ new update log:
 4. <NucProcess.py> added -mg: make genome mode for parental analysis, index genome -if, original -f is used for searching for RE sites, -g genome name. both are required.
   nuc_process -n 16 -mg -g mm10/mm10 -f mm10.masked.fa -if mm10.pwk.fa for two different genomes. One used for RE site, the other used for mapping. mainly used for -pm mode.
 5. <NucProcess.py> updated multithreading for clipping FASTQ reads
-5. <NucSvg.py> removed deprecated toimage() function, replaced by PIL.Image.
-
+6. <NucSvg.py> removed deprecated toimage() function, replaced by PIL.Image.
+7. DotNet 5 is required for assigning PM reads, module was written in C#. (Module will be included in program folder, after testing)
 
 
 
