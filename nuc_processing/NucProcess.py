@@ -127,7 +127,10 @@ def tag_file_name(file_path, tag, file_ext=None, sep='_', ncc_tag='_nuc'):
     file_name = file_root + tag + (file_ext or file_ext_old) + '.gz'
 
   elif file_name.endswith('.ncc') or (file_ext == '.ncc'):
-    file_root, file_ext_old = os.path.splitext(file_name)
+    if file_name.endswith('.x') or file_name.endswith('.y'):
+      file_root, file_ext_old = file_name, ''
+    else:
+      file_root, file_ext_old = os.path.splitext(file_name)
 
     if '_ambig' in file_root:
       ambig_tag = '_ambig'
@@ -1544,8 +1547,12 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
   return sam_file_path
 
 # assign reads to parental -- added by DiabloRex
-def assign_reads(sam_file1, sam_file2, vcf, mode):
-  cmd_args = ["AssignPMReads", vcf, sam_file1, sam_file2, mode] # save unmapped reads for local mapping (not implemented now)
+def assign_reads(sam_file1, sam_file2, vcf, mode, split, mapq):
+
+  if split != "n":
+    info("and Spliting XY Reads ... ")
+
+  cmd_args = ["AssignPMReads", vcf, sam_file1, sam_file2, mode, split, mapq] # save unmapped reads for local mapping (not implemented now)
   proc = Popen(cmd_args, stderr=PIPE, stdout=PIPE)
   std_out, std_err = proc.communicate()
 
@@ -1558,10 +1565,19 @@ def assign_reads(sam_file1, sam_file2, vcf, mode):
 
   sam = os.path.splitext(sam_file1)
   sam_file1 = sam[0] + ".assigned" + sam[1]
+  sam_file1x = sam[0] + ".x.assigned" + sam[1]
+  sam_file1y = sam[0] + ".y.assigned" + sam[1]
   sam = os.path.splitext(sam_file2)
   sam_file2 = sam[0] + ".assigned" + sam[1]
+  sam_file2x = sam[0] + ".x.assigned" + sam[1]
+  sam_file2y = sam[0] + ".y.assigned" + sam[1]
 
-  return sam_file1, sam_file2, msg, error
+  if split == "x":
+    return sam_file1x, sam_file2x, msg, error
+  elif split == 'y':
+    return sam_file1y, sam_file2y, msg, error
+  else:
+    return sam_file1, sam_file2, msg, error
 
 def clip_reads(fastq_file, file_root, junct_seq, replaced_seq, qual_scheme, min_qual, is_second=False, min_len=MIN_READ_LEN):
   """
@@ -2864,7 +2880,7 @@ def read_homologous_chromos(file_path):
 def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(300,800), min_rep=2, num_cpu=1, num_copies=1,
                 ambig=True, unique_map=False, homo_chromo=None, out_file=None, ambig_file=None, report_file=None,
                 align_exe=None, qual_scheme=None, min_qual=30, g_fastas=None, g_fastas2=None, is_pop_data=False, remap=False, reindex=False,
-                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None, fr = False):
+                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None, fr = False, am = "AU", split = False, mapq = "10"):
   """
   Main function for command-line operation
   """
@@ -3062,9 +3078,15 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   #print(file_root)
   # Check and set output files
   if out_file:
-    out_file = check_file_extension(out_file, '.ncc')
+    if split != "n":
+      out_file = check_file_extension(out_file, '.' + split + '.ncc')
+    else:
+      out_file = check_file_extension(out_file, '.ncc')
   else:
-    out_file = file_root + '.ncc'
+    if split != "n":
+      out_file = file_root + '.' + split + '.ncc'
+    else:
+      out_file = file_root + '.ncc'
 
   if ambig:
     if ambig_file:
@@ -3223,14 +3245,23 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   # using program PrepareSNP, written by DiabloRex in dotnet core 5 C#, so install dotnet core 5 runtime is required.
   if pm:
     info('Assigning Parental reads...' + str(datetime.datetime.now()))
-    mode = "RU"
-    sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf, mode)
+
+    sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf, am, split, mapq)
+    # if split:
+    #   sam_file1, sam_file2, sam_file3, sam_file4, msg, error = assign_reads(sam_file1, sam_file2, vcf, am, split)
+    # else:
+    #   sam_file1, sam_file2, msg, error = assign_reads(sam_file1, sam_file2, vcf, am, split)
 
     for m in msg.split('\n'):
       if m.strip():
         info(m)
     if error:
       return
+  
+  if split == "x":
+    intermed_file_root += ".x"
+  elif split == "y":
+    intermed_file_root += ".y"
 
   info('Pairing FASTQ reads...' + str(datetime.datetime.now()))
 
@@ -3238,6 +3269,11 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     paired_ncc_file, ambig_paired_ncc_file = pair_mapped_hybrid_seqs(sam_file1, sam_file2, sam_file3, sam_file4, unpair_path1, unpair_path2, intermed_file_root, ambig, unique_map)
   else:
     paired_ncc_file, ambig_paired_ncc_file = pair_mapped_seqs(sam_file1, sam_file2, intermed_file_root, ambig, unique_map)
+    # if split:
+    #   paired_ncc_file, ambig_paired_ncc_file = pair_mapped_seqs(sam_file1, sam_file3, intermed_file_root, ambig, unique_map)
+    #   paired_ncc_file1, ambig_paired_ncc_file1 = pair_mapped_seqs(sam_file2, sam_file4, intermed_file_root, ambig, unique_map)
+    # else:
+    #   paired_ncc_file, ambig_paired_ncc_file = pair_mapped_seqs(sam_file1, sam_file2, intermed_file_root, ambig, unique_map)
 
   # Write SAM, if requested
   if sam_format:
@@ -3462,6 +3498,9 @@ def main(argv=None):
 
   arg_parse.add_argument('-pm', default=False, action='store_true',
                          help='Whether to perform Parental analysis from two different genome, required for -vcf')
+  
+  arg_parse.add_argument('-am', metavar='PM_READS_ASSIGN_MODE',
+                         help='PM_READS_ASSIGN_MODE: RU (remove all unknown reads) or AU (Assign all unknown to paired reads genotype if valid [default])')
 
   arg_parse.add_argument('-vcf', metavar='SNP_VCF_FILE',
                          help='Optional input vcf files for distinguish Parental reads, chr name should be the same with bowtie2 index file.')
@@ -3474,6 +3513,12 @@ def main(argv=None):
 
   arg_parse.add_argument('-pcm', metavar='NCC_FILE',
                          help='Plot Contact Matrix From NCC file.')
+
+  arg_parse.add_argument('-pcm', metavar='NCC_FILE',
+                         help='Plot Contact Matrix From NCC file.')
+
+  arg_parse.add_argument('-mqual', metavar='MIN_MAPQ',
+                         help='minial quality score for reads mapping.')
 
 
   args = vars(arg_parse.parse_args(argv))
@@ -3515,6 +3560,10 @@ def main(argv=None):
   index_fasta = args['if']
   fr = args['fr']
   pcm = args['pcm']
+  am = args['am']
+  split = args['sxy']
+  mapq = args['mqual']
+
   if pcm:
     nuc_contact_map(pcm, '_contact_map')
     return
@@ -3557,7 +3606,7 @@ def main(argv=None):
     nuc_process(fastq_paths, genome_index, genome_index2, re1, re2, sizes, min_rep, num_cpu, num_copies,
                 ambig, unique_map, homo_chromo, out_file, ambig_file, report_file, align_exe,
                 qual_scheme, min_qual, g_fastas, g_fastas2, is_pop_data, remap, reindex, keep_files,
-                lig_junc, zip_files, sam_format, verbose, mg, pm, vcf, index_fasta, fr)
+                lig_junc, zip_files, sam_format, verbose, mg, pm, vcf, index_fasta, fr, am, split, mapq)
 
   # Required:
   #  - Output CSV report file option
