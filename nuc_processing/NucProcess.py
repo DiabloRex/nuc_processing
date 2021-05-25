@@ -2880,7 +2880,7 @@ def read_homologous_chromos(file_path):
 def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(300,800), min_rep=2, num_cpu=1, num_copies=1,
                 ambig=True, unique_map=False, homo_chromo=None, out_file=None, ambig_file=None, report_file=None,
                 align_exe=None, qual_scheme=None, min_qual=30, g_fastas=None, g_fastas2=None, is_pop_data=False, remap=False, reindex=False,
-                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None, fr = False, am = "AU", split = False, mapq = "10"):
+                keep_files=True, lig_junc=None, zip_files=True, sam_format=True, verbose=True, mg = False, pm = False, vcf=None, index_fasta=None, fr = False, am = "AU", split = 'n', mapq = "10"):
   """
   Main function for command-line operation
   """
@@ -3083,6 +3083,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
     else:
       out_file = check_file_extension(out_file, '.ncc')
   else:
+    print(split)
     if split != "n":
       out_file = file_root + '.' + split + '.ncc'
     else:
@@ -3499,7 +3500,7 @@ def main(argv=None):
   arg_parse.add_argument('-pm', default=False, action='store_true',
                          help='Whether to perform Parental analysis from two different genome, required for -vcf')
   
-  arg_parse.add_argument('-am', metavar='PM_READS_ASSIGN_MODE',
+  arg_parse.add_argument('-am', default="RU", metavar='PM_READS_ASSIGN_MODE',
                          help='PM_READS_ASSIGN_MODE: RU (remove all unknown reads) or AU (Assign all unknown to paired reads genotype if valid [default])')
 
   arg_parse.add_argument('-vcf', metavar='SNP_VCF_FILE',
@@ -3514,8 +3515,8 @@ def main(argv=None):
   arg_parse.add_argument('-pcm', metavar='NCC_FILE',
                          help='Plot Contact Matrix From NCC file.')
 
-  arg_parse.add_argument('-pcm', metavar='NCC_FILE',
-                         help='Plot Contact Matrix From NCC file.')
+  arg_parse.add_argument('-sxy', default="n", metavar='SPLIT_X_OR_Y_READS',
+                         help='Export chrX or chrY cell.')
 
   arg_parse.add_argument('-mqual', metavar='MIN_MAPQ',
                          help='minial quality score for reads mapping.')
