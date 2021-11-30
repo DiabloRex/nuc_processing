@@ -220,7 +220,7 @@ def remove_promiscuous(ncc_file, num_copies=1, keep_files=True, zip_files=False,
 
   resolve_limit : Allow two suitably close promiscous ends if the pairs are long range cis or trans
   """
-  print(ncc_file)
+  #print(ncc_file)
 
   clean_ncc_file = tag_file_name(ncc_file, 'clean')
   clean_ncc_file_temp = clean_ncc_file + TEMP_EXT
@@ -436,8 +436,8 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
   out_file_name_temp = out_file_name + TEMP_EXT
 
   ### yanmeng for debug
-  info("outputting file: " + out_file_name)
-  info("outputting TEMP file: " + out_file_name_temp)
+  #info("outputting file: " + out_file_name)
+  #info("outputting TEMP file: " + out_file_name_temp)
   ###
 
   if INTERRUPTED and os.path.exists(out_file_name) and not os.path.exists(out_file_name_temp):
@@ -449,11 +449,11 @@ def remove_redundancy(ncc_file, min_repeats=2, keep_files=True, zip_files=False,
   sort_file_name = tag_file_name(ncc_file, 'sort')
   cmd_args = ['sort', ncc_file]
   ### yanmeng for debug
-  info("sorting file: " + ncc_file + ", output file: " + sort_file_name + "...")
+  #info("sorting file: " + ncc_file + ", output file: " + sort_file_name + "...")
 
   if not os.path.exists(sort_file_name):
     call(cmd_args, shell=False, stderr=None, stdin=None, stdout=open(sort_file_name, 'w'))
-    info("sorting file: " + ncc_file + " sorted...")
+    #info("sorting file: " + ncc_file + " sorted...")
   else:
     info("sorting file: " + ncc_file + " already sorted...")
 
@@ -3356,12 +3356,13 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   else:
     # Merge duplicates
     info('Removing duplicate contacts...' + str(datetime.datetime.now()))
+
     nr_ncc_file = remove_redundancy(filter_ncc_file, min_rep, keep_files, zip_files)
 
     if split != "n":
       info('Removing duplicate contacts...' + str(datetime.datetime.now()))
       nr_ncc_file1 = remove_redundancy(filter_ncc_file1, min_rep, keep_files, zip_files)
-
+      
     if sam_format:
       write_sam_file(nr_ncc_file, sam_file1, sam_file2)
 
@@ -3408,26 +3409,26 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
       if ambig:
         os.unlink(ambig_clean_ncc_file)
 
-  if not keep_files:
-    os.unlink(clipped_file1)
-    os.unlink(clipped_file2)
+  # if not keep_files:
+  #   os.unlink(clipped_file1)
+  #   os.unlink(clipped_file2)
 
-    os.unlink(sam_file1_temp)
-    os.unlink(sam_file2_temp)
+  #   os.unlink(sam_file1_temp)
+  #   os.unlink(sam_file2_temp)
 
 
 
-    if split != "n":
-      os.unlink(sam_file1)
-      os.unlink(sam_file2)
-      os.unlink(sam_file3)
-      os.unlink(sam_file4)
-      os.unlink(sam_file1_ass)
-      os.unlink(sam_file2_ass)
+  #   if split != "n":
+  #     os.unlink(sam_file1)
+  #     os.unlink(sam_file2)
+  #     os.unlink(sam_file3)
+  #     os.unlink(sam_file4)
+  #     os.unlink(sam_file1_ass)
+  #     os.unlink(sam_file2_ass)
 
-    if genome_index2:
-      os.unlink(sam_file3)
-      os.unlink(sam_file4)
+  #   if genome_index2:
+  #     os.unlink(sam_file3)
+  #     os.unlink(sam_file4)
 
   final_stats = get_ncc_stats(out_file, hom_chromo_dict)
   log_report('final', final_stats)
