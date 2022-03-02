@@ -1301,7 +1301,7 @@ def pair_mapped_hybrid_seqs(sam_file1, sam_file2, sam_file3, sam_file4, unpair_p
   return paired_ncc_file_name, ambig_ncc_file_name
 
 
-def pair_mapped_seqs(sam_file1, sam_file2, file_root, ambig=True, unique_map=False, mapq=10):
+def pair_mapped_seqs(sam_file1, sam_file2, file_root, ambig=True, unique_map=False, mapq=-1):
 
   paired_ncc_file_name = tag_file_name(file_root, 'pair', '.ncc')
   ambig_ncc_file_name = tag_file_name(file_root, 'pair_ambig', '.ncc')
@@ -1551,7 +1551,7 @@ def map_reads(fastq_file, genome_index, align_exe, num_cpu, ambig, qual_scheme, 
   return sam_file_path
 
 # assign reads to parental -- added by DiabloRex
-def assign_reads(sam_file1, sam_file2, vcf, mode, split, mapq, comxy = False):
+def assign_reads(sam_file1, sam_file2, vcf, mode, split, mapq=-1, comxy = False):
 
   if split != "n":
     info("and Spliting XY Reads ... ")
@@ -3157,7 +3157,7 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
         ('Genome FASTA', index_fasta),
         ('RE1 site',re1),
         ('RE2 site',(re2 or 'None')),
-        ('RE Genome FASTA', g_fastas[0]),
+        ('RE Genome FASTA', ', '.join(g_fastas)),
         ('Ligation junction',lig_junc),
         ('Molecule size range',size_str),
         ('Parallel CPU cores',num_cpu),
@@ -3200,7 +3200,11 @@ def nuc_process(fastq_paths, genome_index, genome_index2, re1, re2=None, sizes=(
   if mg and not is_genome_indexed(genome_index):
     warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
     output_dir, base_name = os.path.split(genome_index)
-    index_genome(base_name, [index_fasta], output_dir or '.', indexer_exe, num_cpu)
+    if index_fasta == None:
+      index_fasta = g_fastas
+    else:
+      index_fasta = [index_fasta]
+    index_genome(base_name, index_fasta, output_dir or '.', indexer_exe, num_cpu)
   else:
     if g_fastas and (reindex or not is_genome_indexed(genome_index)):
       warn('Indexing genome, this may take some time...' + str(datetime.datetime.now()))
@@ -3571,7 +3575,7 @@ def main(argv=None):
                          help='Optional input vcf files for distinguish Parental reads, chr name should be the same with bowtie2 index file.')
 
   arg_parse.add_argument('-if', metavar='GENOME_FASTA_FILE_FOR_INDEX',
-                         help='Optional input FASTA files for making bowtie Index used for Parental Analysis, An SNP N-masked FASTA file.')
+                         help='Optional input FASTA files for making bowtie Index used for Parental Analysis, An SNP N-masked FASTA file. Only single file is accepted for now. If leave empty and required to generate index in make genome mode, will use -f genome files instead.')
 
   arg_parse.add_argument('-fr', default=False, action='store_true',
                          help='Force redo, Force INTERRUPTED')
@@ -3582,7 +3586,7 @@ def main(argv=None):
   arg_parse.add_argument('-sxy', default="n", metavar='SPLIT_X_OR_Y_READS',
                          help='Export chrX or chrY cell.')
 
-  arg_parse.add_argument('-mqual', default=10, metavar='MIN_MAPQ',
+  arg_parse.add_argument('-mqual', default=-1, metavar='MIN_MAPQ',
                          help='minial quality score for reads mapping.')
   arg_parse.add_argument('-comxy', default=False, action='store_true',
                          help='compensation for chrX and chrY reads, after split, = 2x reads number')
